@@ -40,12 +40,21 @@ struct NotYetImplemented : virtual Exception {};
  *       "number of ordered pizzas is negative: " << numPizzas << " < 0");
  */
 
+#ifdef DEBUG
 #define UTIL_THROW_EXCEPTION(exception, message) \
 	{ \
 		std::stringstream __util_messageStream; \
 		__util_messageStream << message; \
 		BOOST_THROW_EXCEPTION(exception() << error_message(__util_messageStream.str()) << STACK_TRACE); \
 	}
+#else
+#define UTIL_THROW_EXCEPTION(exception, message) \
+	{ \
+		std::stringstream __util_messageStream; \
+		__util_messageStream << message; \
+		BOOST_THROW_EXCEPTION(exception() << error_message(__util_messageStream.str())); \
+	}
+#endif // DEBUG
 
 /*
  * TAGS
