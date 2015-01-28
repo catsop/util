@@ -114,7 +114,7 @@ struct box {
 template <typename T>
 std::ostream& operator<<(std::ostream& os, const util::box<T>& box) {
 
-	os << "[" << box.min.x << ", " << box.min.x << ", " << box.min.z
+	os << "[" << box.min.x << ", " << box.min.y << ", " << box.min.z
 	   << "; " << box.max.x << ", " << box.max.y << ", " << box.max.z << "]";
 
 	return os;
