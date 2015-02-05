@@ -20,16 +20,19 @@ logger::LogChannel httpclientlog("httpclientlog", "[HttpClient] ");
 
 /** initialize user agent string */
 const char* HttpClient::user_agent = "sopnet/0.10";
-/** initialize authentication variable */
-std::string HttpClient::user_pass =  std::string();
+
+HttpClient::HttpClient() {}
+
 /** Authentication Methods implementation */
 void HttpClient::clearAuth(){
-  HttpClient::user_pass.clear();
+  _user_pass.clear();
 }
+
 void HttpClient::setAuth(const std::string& user,const std::string& password){
-  HttpClient::user_pass.clear();
-  HttpClient::user_pass += user+":"+password;
+  _user_pass.clear();
+  _user_pass += user+":"+password;
 }
+
 /**
  * @brief HTTP GET method
  *
@@ -37,7 +40,7 @@ void HttpClient::setAuth(const std::string& user,const std::string& password){
  *
  * @return response struct
  */
-HttpClient::response HttpClient::get(const std::string& url)
+HttpClient::response HttpClient::get(const std::string& url) const
 {
   /** create return struct */
   HttpClient::response ret;
@@ -53,9 +56,10 @@ HttpClient::response HttpClient::get(const std::string& url)
     char curlError[CURL_ERROR_SIZE] = {0};
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
     /** set basic authentication if present*/
-    if(HttpClient::user_pass.length()>0){
+    if (HttpClient::_user_pass.length() > 0)
+    {
       curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-      curl_easy_setopt(curl, CURLOPT_USERPWD, HttpClient::user_pass.c_str());
+      curl_easy_setopt(curl, CURLOPT_USERPWD, _user_pass.c_str());
     }
     /** set user agent */
     curl_easy_setopt(curl, CURLOPT_USERAGENT, HttpClient::user_agent);
@@ -98,7 +102,7 @@ HttpClient::response HttpClient::get(const std::string& url)
  */
 HttpClient::response HttpClient::post(const std::string& url,
                                       const std::string& ctype,
-                                      const std::string& data)
+                                      const std::string& data) const
 {
   /** create return struct */
   HttpClient::response ret;
@@ -116,9 +120,10 @@ HttpClient::response HttpClient::post(const std::string& url,
     char curlError[CURL_ERROR_SIZE] = {0};
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
     /** set basic authentication if present*/
-    if(HttpClient::user_pass.length()>0){
+    if (HttpClient::_user_pass.length() > 0)
+    {
       curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-      curl_easy_setopt(curl, CURLOPT_USERPWD, HttpClient::user_pass.c_str());
+      curl_easy_setopt(curl, CURLOPT_USERPWD, _user_pass.c_str());
     }
     /** set user agent */
     curl_easy_setopt(curl, CURLOPT_USERAGENT, HttpClient::user_agent);
@@ -170,7 +175,7 @@ HttpClient::response HttpClient::post(const std::string& url,
  */
 HttpClient::response HttpClient::put(const std::string& url,
                                      const std::string& ctype,
-                                     const std::string& data)
+                                     const std::string& data) const
 {
   /** create return struct */
   HttpClient::response ret;
@@ -193,9 +198,10 @@ HttpClient::response HttpClient::put(const std::string& url,
     char curlError[CURL_ERROR_SIZE] = {0};
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
     /** set basic authentication if present*/
-    if(HttpClient::user_pass.length()>0){
+    if (HttpClient::_user_pass.length() > 0)
+    {
       curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-      curl_easy_setopt(curl, CURLOPT_USERPWD, HttpClient::user_pass.c_str());
+      curl_easy_setopt(curl, CURLOPT_USERPWD, _user_pass.c_str());
     }
     /** set user agent */
     curl_easy_setopt(curl, CURLOPT_USERAGENT, HttpClient::user_agent);
@@ -249,7 +255,7 @@ HttpClient::response HttpClient::put(const std::string& url,
  *
  * @return response struct
  */
-HttpClient::response HttpClient::del(const std::string& url)
+HttpClient::response HttpClient::del(const std::string& url) const
 {
   /** create return struct */
   HttpClient::response ret;
@@ -268,9 +274,10 @@ HttpClient::response HttpClient::del(const std::string& url)
     char curlError[CURL_ERROR_SIZE] = {0};
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
     /** set basic authentication if present*/
-    if(HttpClient::user_pass.length()>0){
+    if (HttpClient::_user_pass.length() > 0)
+    {
       curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-      curl_easy_setopt(curl, CURLOPT_USERPWD, HttpClient::user_pass.c_str());
+      curl_easy_setopt(curl, CURLOPT_USERPWD, _user_pass.c_str());
     }
     /** set user agent */
     curl_easy_setopt(curl, CURLOPT_USERAGENT, HttpClient::user_agent);
@@ -398,14 +405,14 @@ HttpClient::handleNon200(const HttpClient::response& res, const std::string& url
 boost::shared_ptr<ptree>
 HttpClient::getPropertyTree(const std::string& url)
 {
-	response res = HttpClient::get(url);
+	response res = get(url);
 	return parsePtree(res, url);
 }
 
 boost::shared_ptr<ptree>
 HttpClient::postPropertyTree(const std::string& url, const std::string& data)
 {
-	response res = HttpClient::post(url, "application/x-www-form-urlencoded", data);
+	response res = post(url, "application/x-www-form-urlencoded", data);
 	return parsePtree(res, url);
 }
 
