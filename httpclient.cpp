@@ -50,7 +50,7 @@ HttpClient::response HttpClient::get(const std::string& url)
   if (curl)
   {
     // CURL error handling
-    char curlError[CURL_ERROR_SIZE];
+    char curlError[CURL_ERROR_SIZE] = {0};
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
     /** set basic authentication if present*/
     if(HttpClient::user_pass.length()>0){
@@ -71,9 +71,12 @@ HttpClient::response HttpClient::get(const std::string& url)
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &ret);
     /** perform the actual query */
     res = curl_easy_perform(curl);
-    if (res != 0)
+    if (CURLE_OK != res)
     {
       ret.body = "Failed to query. CURL error: ";
+      ret.body += curl_easy_strerror(res);
+      ret.body += " DETAIL: ";
+      curlError[CURL_ERROR_SIZE - 1] = '\0'; // Never trust buffers.
       ret.body += curlError;
       ret.code = -1;
       return ret;
