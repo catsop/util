@@ -14,6 +14,7 @@
 #include <map>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/make_shared.hpp>
+#include <util/exceptions.h>
 #include <util/Logger.h>
 
 logger::LogChannel httpclientlog("httpclientlog", "[HttpClient] ");
@@ -21,7 +22,24 @@ logger::LogChannel httpclientlog("httpclientlog", "[HttpClient] ");
 /** initialize user agent string */
 const char* HttpClient::user_agent = "sopnet/0.10";
 
-HttpClient::HttpClient() {}
+HttpClient::HttpClient()
+{
+  _curl = curl_easy_init();
+
+  if (!_curl)
+  {
+    UTIL_THROW_EXCEPTION(NullPointer, "curl_easy_init returned NULL");
+  }
+}
+
+HttpClient::~HttpClient()
+{
+  if (_curl)
+  {
+    curl_easy_cleanup(_curl);
+    _curl = NULL;
+  }
+}
 
 /** Authentication Methods implementation */
 void HttpClient::clearAuth(){
@@ -45,49 +63,43 @@ HttpClient::response HttpClient::get(const std::string& url) const
   /** create return struct */
   HttpClient::response ret;
 
-  // use libcurl
-  CURL *curl;
   CURLcode res;
 
-  curl = curl_easy_init();
-  if (curl)
+  // CURL error handling
+  char curlError[CURL_ERROR_SIZE] = {0};
+  curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, curlError);
+  /** set basic authentication if present*/
+  if (HttpClient::_user_pass.length() > 0)
   {
-    // CURL error handling
-    char curlError[CURL_ERROR_SIZE] = {0};
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
-    /** set basic authentication if present*/
-    if (HttpClient::_user_pass.length() > 0)
-    {
-      curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-      curl_easy_setopt(curl, CURLOPT_USERPWD, _user_pass.c_str());
-    }
-    /** set user agent */
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, HttpClient::user_agent);
-    /** set query URL */
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    /** set callback function */
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, HttpClient::write_callback);
-    /** set data object to pass to callback function */
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ret);
-    /** set the header callback function */
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HttpClient::header_callback);
-    /** callback object for headers */
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &ret);
-    /** perform the actual query */
-    res = curl_easy_perform(curl);
-
-    if (checkCurlError(res, curlError, ret))
-    {
-      curl_easy_cleanup(curl);
-      return ret;
-    }
-
-    long http_code = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-    ret.code = static_cast<int>(http_code);
-
-    curl_easy_cleanup(curl);
+    curl_easy_setopt(_curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+    curl_easy_setopt(_curl, CURLOPT_USERPWD, _user_pass.c_str());
   }
+  /** set user agent */
+  curl_easy_setopt(_curl, CURLOPT_USERAGENT, HttpClient::user_agent);
+  /** set query URL */
+  curl_easy_setopt(_curl, CURLOPT_URL, url.c_str());
+  /** set callback function */
+  curl_easy_setopt(_curl, CURLOPT_WRITEFUNCTION, HttpClient::write_callback);
+  /** set data object to pass to callback function */
+  curl_easy_setopt(_curl, CURLOPT_WRITEDATA, &ret);
+  /** set the header callback function */
+  curl_easy_setopt(_curl, CURLOPT_HEADERFUNCTION, HttpClient::header_callback);
+  /** callback object for headers */
+  curl_easy_setopt(_curl, CURLOPT_HEADERDATA, &ret);
+  /** perform the actual query */
+  res = curl_easy_perform(_curl);
+
+  if (checkCurlError(res, curlError, ret))
+  {
+    curl_easy_reset(_curl);
+    return ret;
+  }
+
+  long http_code = 0;
+  curl_easy_getinfo(_curl, CURLINFO_RESPONSE_CODE, &http_code);
+  ret.code = static_cast<int>(http_code);
+
+  curl_easy_reset(_curl);
 
   return ret;
 }
@@ -109,58 +121,52 @@ HttpClient::response HttpClient::post(const std::string& url,
   /** build content-type header string */
   std::string ctype_header = "Content-Type: " + ctype;
 
-  // use libcurl
-  CURL *curl;
   CURLcode res;
 
-  curl = curl_easy_init();
-  if (curl)
+  // CURL error handling
+  char curlError[CURL_ERROR_SIZE] = {0};
+  curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, curlError);
+  /** set basic authentication if present*/
+  if (HttpClient::_user_pass.length() > 0)
   {
-    // CURL error handling
-    char curlError[CURL_ERROR_SIZE] = {0};
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
-    /** set basic authentication if present*/
-    if (HttpClient::_user_pass.length() > 0)
-    {
-      curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-      curl_easy_setopt(curl, CURLOPT_USERPWD, _user_pass.c_str());
-    }
-    /** set user agent */
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, HttpClient::user_agent);
-    /** set query URL */
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    /** Now specify we want to POST data */
-    curl_easy_setopt(curl, CURLOPT_POST, 1L);
-    /** set post fields */
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data.c_str());
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, data.size());
-    /** set callback function */
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, HttpClient::write_callback);
-    /** set data object to pass to callback function */
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ret);
-    /** set the header callback function */
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HttpClient::header_callback);
-    /** callback object for headers */
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &ret);
-    /** set content-type header */
-    curl_slist* header = NULL;
-    header = curl_slist_append(header, ctype_header.c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header);
-    /** perform the actual query */
-    res = curl_easy_perform(curl);
-
-    if (checkCurlError(res, curlError, ret))
-    {
-      curl_easy_cleanup(curl);
-      return ret;
-    }
-
-    long http_code = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-    ret.code = static_cast<int>(http_code);
-
-    curl_easy_cleanup(curl);
+    curl_easy_setopt(_curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+    curl_easy_setopt(_curl, CURLOPT_USERPWD, _user_pass.c_str());
   }
+  /** set user agent */
+  curl_easy_setopt(_curl, CURLOPT_USERAGENT, HttpClient::user_agent);
+  /** set query URL */
+  curl_easy_setopt(_curl, CURLOPT_URL, url.c_str());
+  /** Now specify we want to POST data */
+  curl_easy_setopt(_curl, CURLOPT_POST, 1L);
+  /** set post fields */
+  curl_easy_setopt(_curl, CURLOPT_POSTFIELDS, data.c_str());
+  curl_easy_setopt(_curl, CURLOPT_POSTFIELDSIZE, data.size());
+  /** set callback function */
+  curl_easy_setopt(_curl, CURLOPT_WRITEFUNCTION, HttpClient::write_callback);
+  /** set data object to pass to callback function */
+  curl_easy_setopt(_curl, CURLOPT_WRITEDATA, &ret);
+  /** set the header callback function */
+  curl_easy_setopt(_curl, CURLOPT_HEADERFUNCTION, HttpClient::header_callback);
+  /** callback object for headers */
+  curl_easy_setopt(_curl, CURLOPT_HEADERDATA, &ret);
+  /** set content-type header */
+  curl_slist* header = NULL;
+  header = curl_slist_append(header, ctype_header.c_str());
+  curl_easy_setopt(_curl, CURLOPT_HTTPHEADER, header);
+  /** perform the actual query */
+  res = curl_easy_perform(_curl);
+
+  if (checkCurlError(res, curlError, ret))
+  {
+    curl_easy_reset(_curl);
+    return ret;
+  }
+
+  long http_code = 0;
+  curl_easy_getinfo(_curl, CURLINFO_RESPONSE_CODE, &http_code);
+  ret.code = static_cast<int>(http_code);
+
+  curl_easy_reset(_curl);
 
   return ret;
 }
@@ -187,64 +193,58 @@ HttpClient::response HttpClient::put(const std::string& url,
   up_obj.data = data.c_str();
   up_obj.length = data.size();
 
-  // use libcurl
-  CURL *curl;
   CURLcode res;
 
-  curl = curl_easy_init();
-  if (curl)
+  // CURL error handling
+  char curlError[CURL_ERROR_SIZE] = {0};
+  curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, curlError);
+  /** set basic authentication if present*/
+  if (HttpClient::_user_pass.length() > 0)
   {
-    // CURL error handling
-    char curlError[CURL_ERROR_SIZE] = {0};
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
-    /** set basic authentication if present*/
-    if (HttpClient::_user_pass.length() > 0)
-    {
-      curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-      curl_easy_setopt(curl, CURLOPT_USERPWD, _user_pass.c_str());
-    }
-    /** set user agent */
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, HttpClient::user_agent);
-    /** set query URL */
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    /** Now specify we want to PUT data */
-    curl_easy_setopt(curl, CURLOPT_PUT, 1L);
-    curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
-    /** set read callback function */
-    curl_easy_setopt(curl, CURLOPT_READFUNCTION, HttpClient::read_callback);
-    /** set data object to pass to callback function */
-    curl_easy_setopt(curl, CURLOPT_READDATA, &up_obj);
-    /** set callback function */
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, HttpClient::write_callback);
-    /** set data object to pass to callback function */
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ret);
-    /** set the header callback function */
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HttpClient::header_callback);
-    /** callback object for headers */
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &ret);
-    /** set data size */
-    curl_easy_setopt(curl, CURLOPT_INFILESIZE,
-                     static_cast<long>(up_obj.length));
-
-    /** set content-type header */
-    curl_slist* header = NULL;
-    header = curl_slist_append(header, ctype_header.c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header);
-    /** perform the actual query */
-    res = curl_easy_perform(curl);
-
-    if (checkCurlError(res, curlError, ret))
-    {
-      curl_easy_cleanup(curl);
-      return ret;
-    }
-
-    long http_code = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-    ret.code = static_cast<int>(http_code);
-
-    curl_easy_cleanup(curl);
+    curl_easy_setopt(_curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+    curl_easy_setopt(_curl, CURLOPT_USERPWD, _user_pass.c_str());
   }
+  /** set user agent */
+  curl_easy_setopt(_curl, CURLOPT_USERAGENT, HttpClient::user_agent);
+  /** set query URL */
+  curl_easy_setopt(_curl, CURLOPT_URL, url.c_str());
+  /** Now specify we want to PUT data */
+  curl_easy_setopt(_curl, CURLOPT_PUT, 1L);
+  curl_easy_setopt(_curl, CURLOPT_UPLOAD, 1L);
+  /** set read callback function */
+  curl_easy_setopt(_curl, CURLOPT_READFUNCTION, HttpClient::read_callback);
+  /** set data object to pass to callback function */
+  curl_easy_setopt(_curl, CURLOPT_READDATA, &up_obj);
+  /** set callback function */
+  curl_easy_setopt(_curl, CURLOPT_WRITEFUNCTION, HttpClient::write_callback);
+  /** set data object to pass to callback function */
+  curl_easy_setopt(_curl, CURLOPT_WRITEDATA, &ret);
+  /** set the header callback function */
+  curl_easy_setopt(_curl, CURLOPT_HEADERFUNCTION, HttpClient::header_callback);
+  /** callback object for headers */
+  curl_easy_setopt(_curl, CURLOPT_HEADERDATA, &ret);
+  /** set data size */
+  curl_easy_setopt(_curl, CURLOPT_INFILESIZE,
+                   static_cast<long>(up_obj.length));
+
+  /** set content-type header */
+  curl_slist* header = NULL;
+  header = curl_slist_append(header, ctype_header.c_str());
+  curl_easy_setopt(_curl, CURLOPT_HTTPHEADER, header);
+  /** perform the actual query */
+  res = curl_easy_perform(_curl);
+
+  if (checkCurlError(res, curlError, ret))
+  {
+    curl_easy_reset(_curl);
+    return ret;
+  }
+
+  long http_code = 0;
+  curl_easy_getinfo(_curl, CURLINFO_RESPONSE_CODE, &http_code);
+  ret.code = static_cast<int>(http_code);
+
+  curl_easy_reset(_curl);
 
   return ret;
 }
@@ -263,51 +263,45 @@ HttpClient::response HttpClient::del(const std::string& url) const
   /** we want HTTP DELETE */
   const char* http_delete = "DELETE";
 
-  // use libcurl
-  CURL *curl;
   CURLcode res;
 
-  curl = curl_easy_init();
-  if (curl)
+  // CURL error handling
+  char curlError[CURL_ERROR_SIZE] = {0};
+  curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, curlError);
+  /** set basic authentication if present*/
+  if (HttpClient::_user_pass.length() > 0)
   {
-    // CURL error handling
-    char curlError[CURL_ERROR_SIZE] = {0};
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
-    /** set basic authentication if present*/
-    if (HttpClient::_user_pass.length() > 0)
-    {
-      curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
-      curl_easy_setopt(curl, CURLOPT_USERPWD, _user_pass.c_str());
-    }
-    /** set user agent */
-    curl_easy_setopt(curl, CURLOPT_USERAGENT, HttpClient::user_agent);
-    /** set query URL */
-    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-    /** set HTTP DELETE METHOD */
-    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, http_delete);
-    /** set callback function */
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, HttpClient::write_callback);
-    /** set data object to pass to callback function */
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &ret);
-    /** set the header callback function */
-    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, HttpClient::header_callback);
-    /** callback object for headers */
-    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &ret);
-    /** perform the actual query */
-    res = curl_easy_perform(curl);
-
-    if (checkCurlError(res, curlError, ret))
-    {
-      curl_easy_cleanup(curl);
-      return ret;
-    }
-
-    long http_code = 0;
-    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-    ret.code = static_cast<int>(http_code);
-
-    curl_easy_cleanup(curl);
+    curl_easy_setopt(_curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+    curl_easy_setopt(_curl, CURLOPT_USERPWD, _user_pass.c_str());
   }
+  /** set user agent */
+  curl_easy_setopt(_curl, CURLOPT_USERAGENT, HttpClient::user_agent);
+  /** set query URL */
+  curl_easy_setopt(_curl, CURLOPT_URL, url.c_str());
+  /** set HTTP DELETE METHOD */
+  curl_easy_setopt(_curl, CURLOPT_CUSTOMREQUEST, http_delete);
+  /** set callback function */
+  curl_easy_setopt(_curl, CURLOPT_WRITEFUNCTION, HttpClient::write_callback);
+  /** set data object to pass to callback function */
+  curl_easy_setopt(_curl, CURLOPT_WRITEDATA, &ret);
+  /** set the header callback function */
+  curl_easy_setopt(_curl, CURLOPT_HEADERFUNCTION, HttpClient::header_callback);
+  /** callback object for headers */
+  curl_easy_setopt(_curl, CURLOPT_HEADERDATA, &ret);
+  /** perform the actual query */
+  res = curl_easy_perform(_curl);
+
+  if (checkCurlError(res, curlError, ret))
+  {
+    curl_easy_reset(_curl);
+    return ret;
+  }
+
+  long http_code = 0;
+  curl_easy_getinfo(_curl, CURLINFO_RESPONSE_CODE, &http_code);
+  ret.code = static_cast<int>(http_code);
+
+  curl_easy_reset(_curl);
 
   return ret;
 }

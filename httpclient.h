@@ -43,6 +43,8 @@ class HttpClient
 
     HttpClient();
 
+    ~HttpClient();
+
     /** public methods */
     // Auth
     void clearAuth();
@@ -121,7 +123,9 @@ class HttpClient
     static size_t read_callback(void *ptr, size_t size, size_t nmemb,
                                 void *userdata);
     static const char* user_agent;
+
     std::string _user_pass;
+    CURL* _curl;
 
     // trim from start
     static inline std::string &ltrim(std::string &s) {
