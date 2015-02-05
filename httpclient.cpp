@@ -71,16 +71,13 @@ HttpClient::response HttpClient::get(const std::string& url)
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &ret);
     /** perform the actual query */
     res = curl_easy_perform(curl);
-    if (CURLE_OK != res)
+
+    if (checkCurlError(res, curlError, ret))
     {
-      ret.body = "Failed to query. CURL error: ";
-      ret.body += curl_easy_strerror(res);
-      ret.body += " DETAIL: ";
-      curlError[CURL_ERROR_SIZE - 1] = '\0'; // Never trust buffers.
-      ret.body += curlError;
-      ret.code = -1;
+      curl_easy_cleanup(curl);
       return ret;
     }
+
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     ret.code = static_cast<int>(http_code);
@@ -115,6 +112,9 @@ HttpClient::response HttpClient::post(const std::string& url,
   curl = curl_easy_init();
   if (curl)
   {
+    // CURL error handling
+    char curlError[CURL_ERROR_SIZE] = {0};
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
     /** set basic authentication if present*/
     if(HttpClient::user_pass.length()>0){
       curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
@@ -143,12 +143,13 @@ HttpClient::response HttpClient::post(const std::string& url,
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header);
     /** perform the actual query */
     res = curl_easy_perform(curl);
-    if (res != 0)
+
+    if (checkCurlError(res, curlError, ret))
     {
-      ret.body = "Failed to query.";
-      ret.code = -1;
+      curl_easy_cleanup(curl);
       return ret;
     }
+
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     ret.code = static_cast<int>(http_code);
@@ -188,6 +189,9 @@ HttpClient::response HttpClient::put(const std::string& url,
   curl = curl_easy_init();
   if (curl)
   {
+    // CURL error handling
+    char curlError[CURL_ERROR_SIZE] = {0};
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
     /** set basic authentication if present*/
     if(HttpClient::user_pass.length()>0){
       curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
@@ -222,12 +226,13 @@ HttpClient::response HttpClient::put(const std::string& url,
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header);
     /** perform the actual query */
     res = curl_easy_perform(curl);
-    if (res != 0)
+
+    if (checkCurlError(res, curlError, ret))
     {
-      ret.body = "Failed to query.";
-      ret.code = -1;
+      curl_easy_cleanup(curl);
       return ret;
     }
+
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     ret.code = static_cast<int>(http_code);
@@ -259,6 +264,9 @@ HttpClient::response HttpClient::del(const std::string& url)
   curl = curl_easy_init();
   if (curl)
   {
+    // CURL error handling
+    char curlError[CURL_ERROR_SIZE] = {0};
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, curlError);
     /** set basic authentication if present*/
     if(HttpClient::user_pass.length()>0){
       curl_easy_setopt(curl, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
@@ -280,12 +288,13 @@ HttpClient::response HttpClient::del(const std::string& url)
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &ret);
     /** perform the actual query */
     res = curl_easy_perform(curl);
-    if (res != 0)
+
+    if (checkCurlError(res, curlError, ret))
     {
-      ret.body = "Failed to query.";
-      ret.code = -1;
+      curl_easy_cleanup(curl);
       return ret;
     }
+
     long http_code = 0;
     curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     ret.code = static_cast<int>(http_code);
@@ -486,5 +495,24 @@ HttpClient::checkDjangoError(const boost::shared_ptr<ptree> pt)
 	{
 		return false;
 	}
+}
+
+bool
+HttpClient::checkCurlError(
+    const                 CURLcode res,
+    char*                 curlErrorBuffer,
+    HttpClient::response& ret)
+{
+  if (CURLE_OK != res)
+  {
+    ret.body = "Failed to query. CURL error: ";
+    ret.body += curl_easy_strerror(res);
+    ret.body += " DETAIL: ";
+    curlErrorBuffer[CURL_ERROR_SIZE - 1] = '\0'; // Never trust buffers.
+    ret.body += curlErrorBuffer;
+    ret.code = -1;
+    return true;
+  }
+  return false;
 }
 

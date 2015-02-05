@@ -142,6 +142,11 @@ class HttpClient
 
 	static void handleNon200(const response& res, const std::string& url);
 
+    static bool checkCurlError(
+        const                 CURLcode res,
+        char*                 curlErrorBuffer,
+        HttpClient::response& ret);
+
 };
 
 #endif  // HTTPCLIENT_H__
