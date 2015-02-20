@@ -68,8 +68,11 @@ stack_trace_::stack_trace_() {
 
 		LOG_ALL(tracelog) << "[parent] allowing child to attach" << std::endl;
 
+#ifdef PR_SET_PTRACER
+		// PR_SET_PTRACER is specific to the Yama LSM. Some distros omit it.
 		// allow our child process to attach
 		prctl(PR_SET_PTRACER, childPid, 0, 0, 0);
+#endif // PR_SET_PTRACER
 
 		LOG_ALL(tracelog) << "[parent] closing barrier pipe" << std::endl;
 
