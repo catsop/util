@@ -142,8 +142,6 @@ struct point3 {
 	}
 };
 
-} // namespace util
-
 template <typename T, typename S>
 util::point3<T> operator+(const util::point3<T>& p, const util::point3<S>& o) {
 
@@ -200,6 +198,7 @@ std::ostream& operator<<(std::ostream& os, const util::point3<T>& point) {
 	return os;
 }
 
+} // namespace util
 
 #endif // UTIL_POINT3_H__
 

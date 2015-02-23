@@ -249,8 +249,6 @@ struct rect {
 	}
 };
 
-} // namespace util
-
 template <typename T, typename S>
 util::rect<T> operator+(const util::rect<T>& p, const util::point<S>& o) {
 
@@ -299,6 +297,8 @@ std::ostream& operator<<(std::ostream& os, const util::rect<T>& rect) {
 
 	return os;
 }
+
+} // namespace util
 
 #endif // UTIL_RECT_H__
 
