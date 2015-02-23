@@ -56,6 +56,13 @@ struct NotYetImplemented : virtual Exception {};
 	}
 #endif // DEBUG
 
+#define UTIL_RETHROW(e, message) \
+	{ \
+		std::stringstream __util_messageStream; \
+		__util_messageStream << *boost::get_error_info<error_message>(e) << message; \
+		BOOST_THROW_EXCEPTION(e << error_message(__util_messageStream.str())); \
+	}
+
 /*
  * TAGS
  */
@@ -81,14 +88,7 @@ private:
 	std::string _program_name;
 };
 
-template <class OS>
-std::ostream& operator<<(OS& out, const stack_trace_& trace) {
-
-	for (unsigned int i = 0; i < trace.get_stack_trace().size(); i++)
-		out << trace.get_stack_trace()[i] << std::endl;
-
-	return out;
-}
+std::ostream& operator<<(std::ostream& out, const stack_trace_& trace);
 
 typedef boost::error_info<struct tag_error_message, std::string> error_message;
 
@@ -102,7 +102,7 @@ typedef boost::error_info<struct tag_mismatch_size2, int> mismatch_size2;
  * HELPER FUNCTIONS
  */
 
-void handleException(boost::exception& e, std::ostream& out);
+void handleException(const boost::exception& e, std::ostream& out);
 
 #endif // EXCEPTIONS_H__
 
