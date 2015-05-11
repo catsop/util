@@ -1,98 +1,330 @@
 #ifndef UTIL_BOX_H__
 #define UTIL_BOX_H__
 
-#include "point3.hpp"
-#include "rect.hpp"
+#include <sstream>
+#include <iostream>
+#include <type_traits>
+
+#include "point.hpp"
 
 namespace util {
 
-/**
- * Represents a box with a minimal point (inclusive) and a maximal point 
- * (exclusive).
- */
-template <typename T>
-struct box {
+// forward declaration
+template <typename T, int N>
+class box;
 
-	util::point3<T> min;
-	util::point3<T> max;
+template <typename Derived, typename T, int N>
+class box_base {
+
+public:
 
 	/**
 	 * Default constructor.
 	 */
-	box() {};
+	box_base() {}
 
 	template <typename S>
-	box(const box<S>& other) :
-		min(other.min),
-		max(other.max) {};
+	box_base(const point<S,N>& min, const point<S,N>& max) :
+		_min(min),
+		_max(max) {}
+
+	template <typename D,typename S>
+	box_base(const box_base<D,S,N>& other) :
+		_min(other.min()),
+		_max(other.max()) {}
 
 	template <typename S>
-	box(const point3<S>& min_, const point3<S>& max_) :
-		min(min_),
-		max(max_) {}
+	operator box<S,N>() const { return box<S,N>(_min, _max); }
 
-	box(const T& minX_, const T& minY_, const T& minZ_, const T& maxX_, const T& maxY_, const T& maxZ_) :
-		min(minX_, minY_, minZ_),
-		max(maxX_, maxY_, maxZ_) {};
+	const point<T,N>& min() const { return _min; }
+	point<T,N>& min() { return _min; }
+	const point<T,N>& max() const { return _max; }
+	point<T,N>& max() { return _max; }
 
-	T width() const {
+	bool valid() { return isZero(); }
 
-		return max.x - min.x;
+	point<T,N> center() const { return (_min + _max)/2.0; }
+
+	template <typename D, typename S>
+	bool intersects(const box_base<D,S,N>& other) const {
+
+		// empty boxes do not intersect
+		if (isZero() || other.isZero())
+			return false;
+
+		// two non-intersecting boxes are separated by a plane parallel to
+		// either dimension
+
+		for (int i = 0; i < N; i++)
+			if (max()[i] <= other.min()[i] || min()[i] >= other.max()[i])
+				return false;
+
+		return true;
 	}
 
-	T height() const {
+	template <typename D, typename S>
+	Derived intersection(const box_base<D,S,N>& other) const {
 
-		return max.y - min.y;
+		Derived result;
+
+		if (!intersects(other))
+			return result;
+
+		for (int i = 0; i < N; i++) {
+
+			result.min()[i] = std::max(min()[i], other.min()[i]);
+			result.max()[i] = std::min(max()[i], other.max()[i]);
+		}
+
+		return result;
 	}
 
-	T depth() const {
+	template <typename S, int M>
+	bool contains(const point<S,M>& point) const {
 
-		return max.z - min.z;
-	}
+		for (int i = 0; i < std::min(N, M); i++)
+			if (max()[i] <= point[i] || min()[i] > point[i])
+				return false;
 
-	point3<T> size() const {
-
-		return max - min;
-	}
-
-	bool contains(const point3<T>& point) const {
-
-		return
-				min.x <= point.x && min.y <= point.y && min.z <= point.z &&
-				max.x >  point.x && max.y >  point.y && max.z >  point.z;
-	}
-
-	bool contains(const box<T>& other) const {
-
-		return 
-				min.x <= other.min.x && min.y <= other.min.y && min.z <= other.min.z &&
-				max.x >= other.max.x && max.y >= other.max.y && max.z >= other.max.z;
+		return true;
 	}
 
 	/**
-	 * Extend this box, such that it fits the given point3.
+	 * Extend this box, such that it fits the given point.
 	 */
-	void fit(const point3<T>& point) {
+	template <typename S>
+	void fit(const point<S,N>& point) {
 
-		min.x = std::min(point.x, min.x);
-		min.y = std::min(point.y, min.y);
-		min.z = std::min(point.z, min.z);
-		max.x = std::max(point.x, max.x);
-		max.y = std::max(point.y, max.y);
-		max.z = std::max(point.z, max.z);
+		if (isZero()) {
+
+			for (int i = 0; i < N; i++) {
+
+				min()[i] = point[i];
+				max()[i] = point[i];
+			}
+
+			return;
+		}
+
+		for (int i = 0; i < N; i++) {
+
+			min()[i] = std::min((T)point[i], min()[i]);
+			max()[i] = std::max((T)point[i], max()[i]);
+		}
+	}
+
+	/**
+	 * Extend the x and y dimensions of the box, such that it fits the given 
+	 * box.
+	 */
+	template <typename D, typename S, int M>
+	void fit(const box_base<D,S,M>& other) {
+
+		if (isZero()) {
+
+			for (int i = 0; i < std::min(N, M); i++) {
+
+				min()[i] = other.min()[i];
+				max()[i] = other.max()[i];
+			}
+
+			return;
+		}
+
+		for (int i = 0; i < std::min(N, M); i++) {
+
+			min()[i] = std::min(other.min()[i], min()[i]);
+			max()[i] = std::max(other.max()[i], max()[i]);
+		}
 	}
 
 	/**
 	 * Extend this box, such that it fits the given box.
 	 */
-	void fit(const box<T>& box) {
+	template <typename D, typename S, int M>
+	Derived& operator+=(const box_base<D,S,M>& other) {
 
-		min.x = std::min(box.min.x, min.x);
-		min.y = std::min(box.min.y, min.y);
-		min.z = std::min(box.min.z, min.z);
-		max.x = std::max(box.max.x, max.x);
-		max.y = std::max(box.max.y, max.y);
-		max.z = std::max(box.max.z, max.z);
+		this->fit(other);
+
+		return static_cast<Derived&>(*this);
+	}
+
+	/**
+	 * Add two boxes, i.e., create one that fits both.
+	 */
+	template <typename D, typename S, int M>
+	Derived operator+(const box_base<D,S,M>& other) const {
+
+		Derived b(*this);
+		return (b += other);
+	}
+
+	bool isZero() const {
+
+		for (int i = 0; i < N; i++)
+			if (min()[i] != 0 || max()[i] != 0)
+				return false;
+
+		return true;
+	}
+
+	template <typename S, int M>
+	Derived& operator+=(const point<S,M>& p) {
+
+		for (int i = 0; i < std::min(N, M); i++) {
+
+			min()[i] += p[i];
+			max()[i] += p[i];
+		}
+
+		return static_cast<Derived&>(*this);
+	}
+
+	template <typename S, int M>
+	Derived& operator-=(const point<S,M>& p) {
+
+		for (int i = 0; i < std::min(N, M); i++) {
+
+			min()[i] -= p[i];
+			max()[i] -= p[i];
+		}
+
+		return static_cast<Derived&>(*this);
+	}
+
+	template <typename S>
+	Derived& operator*=(const S& s) {
+
+		min() *= s;
+		max() *= s;
+
+		return static_cast<Derived&>(*this);
+	}
+
+	template <typename S>
+	Derived& operator/=(const S& s) {
+
+		min() /= s;
+		max() /= s;
+
+		return static_cast<Derived&>(*this);
+	}
+
+	template <typename D, typename S>
+	bool operator==(const box_base<D,S,N>& other) const {
+
+		return (min() == other.min() && max() == other.max());
+	}
+
+	template <typename D, typename S>
+	bool operator!=(const box_base<D,S,N>& other) const {
+
+		return !(*this == other);
+	}
+
+private:
+
+	point<T,N> _min;
+	point<T,N> _max;
+};
+
+template <typename T, int N>
+class box : public box_base<box<T,N>, T, N> {
+
+	typedef box_base<box<T,N>, T, N> base_type;
+
+public:
+
+	template <typename S>
+	box(const point<S,N>& min, const point<S,N>& max) :
+		base_type(
+				min,
+				max) {}
+};
+
+template <typename T>
+class box<T,2> : public box_base<box<T,2>, T, 2> {
+
+	typedef box_base<box<T,2>, T, 2> base_type;
+
+public:
+
+	box() : base_type() {}
+
+	box(T minX, T minY, T maxX, T maxY) :
+		base_type(
+				point<T,2>(minX, minY),
+				point<T,2>(maxX, maxY)) {}
+
+	template <typename S>
+	box(const point<S,2>& min, const point<S,2>& max) :
+		base_type(
+				min,
+				max) {}
+
+	using base_type::min;
+	using base_type::max;
+
+	T width() const {
+
+		return max().x() - min().x();
+	}
+
+	T height() const {
+
+		return max().y() - min().y();
+	}
+
+	T area() const {
+
+		return width()*height();
+	}
+
+	using base_type::contains;
+
+	template <typename S>
+	bool contains(S x, S y) const {
+
+		return contains(point<S,2>(x, y));
+	}
+};
+
+template <typename T>
+class box<T, 3> : public box_base<box<T, 3>, T, 3> {
+
+	typedef box_base<box<T,3>, T, 3> base_type;
+
+public:
+
+	box() : base_type() {}
+
+	box(T minX, T minY, T minZ, T maxX, T maxY, T maxZ) :
+		base_type(
+				point<T,3>(minX, minY, minZ),
+				point<T,3>(maxX, maxY, maxZ)) {}
+
+	template <typename S>
+	box(const point<S,3>& min, const point<S,3>& max) :
+		base_type(
+				min,
+				max) {}
+
+	using base_type::min;
+	using base_type::max;
+
+	T width() const {
+
+		return max().x() - min().x();
+	}
+
+	T height() const {
+
+		return max().y() - min().y();
+	}
+
+	T depth() const {
+
+		return max().z() - min().z();
 	}
 
 	T volume() const {
@@ -100,25 +332,68 @@ struct box {
 		return width()*height()*depth();
 	}
 
-	/**
-	 * Get a rectangle that corresponds to the x- and y-extents of this box.
-	 */
-	rect<T> project_xy() const {
+	using base_type::contains;
 
-		return rect<T>(min.x, min.y, max.x, max.y);
+	template <typename S>
+	bool contains(S x, S y, S z) const {
+
+		return contains(point<S,3>(x, y, z));
 	}
 };
 
 } // namespace util
 
-template <typename T>
-std::ostream& operator<<(std::ostream& os, const util::box<T>& box) {
+template <typename T, int N, typename PointType>
+util::box<T,N> operator+(const util::box<T,N>& p, const PointType& o) {
 
-	os << "[" << box.min.x << ", " << box.min.y << ", " << box.min.z
-	   << "; " << box.max.x << ", " << box.max.y << ", " << box.max.z << "]";
+	util::box<T,N> result(p);
+
+	return result += o;
+}
+
+template <typename T, int N, typename PointType>
+util::box<T,N> operator-(const util::box<T,N>& p, const PointType& o) {
+
+	util::box<T,N> result(p);
+
+	return result -= o;
+}
+
+template <typename T, int N, typename S>
+util::box<T,N> operator*(const util::box<T,N>& p, const S& s) {
+
+	util::box<T,N> result(p);
+
+	return result *= s;
+}
+
+template <typename S, typename T, int N>
+util::box<S,N> operator*(const S& s, const util::box<T,N>& p) {
+
+	util::box<S,N> result(p);
+
+	return result *= s;
+}
+
+template <typename T, int N, typename S>
+util::box<T,N> operator/(const util::box<T,N>& p, const S& s) {
+
+	util::box<T,N> result(p);
+
+	return result /= s;
+}
+
+namespace util {
+
+template <typename T, int N>
+std::ostream& operator<<(std::ostream& os, const box<T,N>& box) {
+
+	os <<  "[" << box.min() << ", " << box.max() << "]";
 
 	return os;
 }
+
+} // namespace util
 
 #endif // UTIL_BOX_H__
 
