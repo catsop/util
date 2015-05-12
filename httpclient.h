@@ -94,7 +94,7 @@ class HttpClient
 	{
 		unsigned int count = 0;
 		vect.reserve(vect.size() + pt.size());
-		foreach (ptree::value_type v, pt)
+		for (ptree::value_type v : pt)
 		{
 			vect.push_back(v.second.get_value<T>());
 			++count;
