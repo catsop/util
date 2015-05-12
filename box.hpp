@@ -41,6 +41,8 @@ public:
 	const point<T,N>& max() const { return _max; }
 	point<T,N>& max() { return _max; }
 
+	point<T,N> size() const { return _max - _min; }
+
 	bool valid() { return isZero(); }
 
 	point<T,N> center() const { return (_min + _max)/2.0; }
@@ -133,8 +135,8 @@ public:
 
 		for (int i = 0; i < std::min(N, M); i++) {
 
-			min()[i] = std::min(other.min()[i], min()[i]);
-			max()[i] = std::max(other.max()[i], max()[i]);
+			min()[i] = std::min((T)other.min()[i], min()[i]);
+			max()[i] = std::max((T)other.max()[i], max()[i]);
 		}
 	}
 
@@ -220,6 +222,23 @@ public:
 	bool operator!=(const box_base<D,S,N>& other) const {
 
 		return !(*this == other);
+	}
+
+	template <int M>
+	explicit operator box<T,M>() const {
+
+		return box<T,M>(static_cast<util::point<T,M>>(min()), static_cast<util::point<T,M>>(max()));
+	}
+
+	/**
+	 * Project to a different dimension. If the target dimension is smaller, the 
+	 * last components of the boundary points are simply discarded. If the 
+	 * target dimension is larger, new zero-initialized components are added.
+	 */
+	template <int M>
+	box<T,M> project() const {
+
+		return static_cast<util::box<T,M>>(*this);
 	}
 
 private:

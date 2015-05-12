@@ -106,6 +106,17 @@ public:
 		return !(*this == other);
 	}
 
+	template <typename D, typename S>
+	bool operator<(const point_base<D, S, N>& other) const {
+
+		for (int i = 0; i < N; i++)
+			if (_a[i] != other.data()[i])
+				return (_a[i] < other.data()[i]);
+
+		// all equal
+		return false;
+	}
+
 	template <int M>
 	explicit operator point<T,M>() const {
 
@@ -223,6 +234,16 @@ public:
 	inline T& x() { return data()[0]; }
 	inline T& y() { return data()[1]; }
 	inline T& z() { return data()[2]; }
+
+	/**
+	 * boost python api helper functions
+	 */
+	inline T __get_x() const { return x(); }
+	inline T __get_y() const { return y(); }
+	inline T __get_z() const { return z(); }
+	inline void __set_x(T x_) { x() = x_; }
+	inline void __set_y(T y_) { y() = y_; }
+	inline void __set_z(T z_) { z() = z_; }
 };
 
 } // namespace util
