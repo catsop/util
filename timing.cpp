@@ -34,7 +34,7 @@ TimingStatistics::~TimingStatistics() {
 			<< "timing summary in seconds (wall time):"
 			<< std::endl << std::endl;
 
-	for (int i = 0; i < _longestIdentifierLength; i++)
+	for (size_t i = 0; i < _longestIdentifierLength; i++)
 		std::cout << " ";
 	std::cout << spacer;
 	std::cout << "   # runs" << spacer;
@@ -69,7 +69,7 @@ TimingStatistics::~TimingStatistics() {
 		double median = times[numRuns/2];
 
 		std::cout << identifier;
-		for (int i = 0; i < _longestIdentifierLength - identifier.size(); i++)
+		for (size_t i = 0; i < _longestIdentifierLength - identifier.size(); i++)
 			std::cout << " ";
 		std::cout << spacer;
 		std::cout << std::setw(9) << std::setfill(' ');
